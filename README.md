@@ -1,9 +1,9 @@
 python-tuxeip
 =============
 
-Python ctype wrapper for TuxEIP
+Python ctypes wrapper for TuxEIP
 
-Currently testing with Allen Bradley Micrologix 1100.
+Currently testing with Allen Bradley Micrologix 1100 and CompactLogix PLC.
 
-Hopefully I can get my hands on a Logix 5000 PLC shortly.
+See in tests folder for usage examples.
 

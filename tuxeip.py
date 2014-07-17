@@ -11,7 +11,7 @@ LGX=3
 # EIP DATA TYPES
 PLC_BIT=1
 PLC_BIT_STRING=2
-PLC_BYTE_STRING=3,
+PLC_BYTE_STRING=3
 PLC_INTEGER=4
 PLC_TIMER=5
 PLC_COUNTER=6
@@ -20,6 +20,14 @@ PLC_FLOATING=8
 PLC_ARRAY=9
 PLC_ADRESS=15
 PLC_BCD=16
+
+# LOGIX DATA TYPES
+LGX_BOOL=0xC1
+LGX_BITARRAY=0xD3
+LGX_SINT=0xC2
+LGX_INT=0xC3
+LGX_DINT=0xC4
+LGX_REAL=0xCA
 
 class Eip_Session(Structure):
     _fields_ = [
@@ -55,19 +63,7 @@ class Eip_PLC_Read(Structure):
         ('mask', c_uint),
     ]
 
-class TuxEIP_CouldntOpenSession(Exception):
-    def __init__(self):
-        Exception.__init__(self)
-
-class TuxEIP_CouldntRegisterSession(Exception):
-    def __init__(self):
-        Exception.__init__(self)
-
-class TuxEIP_CouldntBeginEIPConnection(Exception):
-    def __init__(self):
-        Exception.__init__(self)
-
-class TuxEIP_ReadPLCDataFailed(Exception):
+class TuxEIPException(Exception):
     def __init__(self):
         Exception.__init__(self)
 
@@ -76,6 +72,7 @@ class TuxEIP:
     def __init__(self, **kwargs):
         self.__libpath = kwargs.get("libpath", "libtuxeip.dylib")
         self.__tuxeip = CDLL(self.__libpath)
+        self.__tuxeip._cip_err_msg.restype = c_char_p
 
     def OpenSession(self, slaveip_, slaveport_=44818, slavetimeout_=1000):
         self.__tuxeip._OpenSession.restype = POINTER(Eip_Session)
@@ -86,9 +83,11 @@ class TuxEIP:
         slavetimeout = c_int(slavetimeout_)
 
         session = self.__tuxeip._OpenSession(slaveip, slaveport, slavetimeout)
+        
+        #print self.__tuxeip._cip_err_msg, self.__tuxeip._cip_errno, self.__tuxeip._cip_ext_errno
 
         if bool(session) == False:
-            raise TuxEIP_CouldntOpenSession()
+            raise TuxEIPException()
 
         return session
 
@@ -96,9 +95,8 @@ class TuxEIP:
         self.__tuxeip._RegisterSession.restype = c_int
         reg = self.__tuxeip._RegisterSession(sess_)
 
-        print reg
-        #if bool(reg) == False:
-        #    raise TuxEIP_CouldntRegisterSession()
+        if reg != False:
+            raise TuxEIPException()
 
         return reg
 
@@ -136,9 +134,54 @@ class TuxEIP:
         )
 
         if bool(connection) == False:
-            raise TuxEIP_CouldntBeginEIPConnection()
+            raise TuxEIPException()
 
         return connection
+
+    def ReadLgxData(self, sess_, conn_, var_, num_):
+        self.__tuxeip._ReadLgxData.restype = POINTER(Eip_PLC_Read)
+        readdata = self.__tuxeip._ReadLgxData(sess_, conn_, var_, num_)
+
+        if bool(readdata) == False:
+            raise TuxEIPException()
+
+        return readdata
+
+    def WriteLGXData(self, sess_, conn_, address_, datatype_, data_, num_ ):
+        if datatype_ == LGX_INT:
+            data = c_int(data_)
+        elif datatype_ == LGX_REAL:
+            data = c_float(data_)
+        else:
+            raise TuxEIPException()
+
+        data = self.__tuxeip._WriteLgxData(sess_, conn_, address_, datatype_, byref(data), num_)
+
+        return data
+
+    def ReadLGXDataAsFloat(self, sess_, conn_, var_, num_):
+        data = self.ReadLgxData(sess_, conn_, var_, num_)
+        d = self.GetLGXValueAsFloat(data)
+        self.FreePLCRead(data)
+        return d
+
+    def ReadLGXDataAsInteger(self, sess_, conn_, var_, num_):
+        data = self.ReadLgxData(sess_, conn_, var_, num_)
+        d = self.GetLGXValueAsInteger(data)
+        self.FreePLCRead(data)
+        return d
+
+    def ReadPLCDataAsFloat(self, sess_, conn_, dhp_, routepath_, routesize_, plctype_, tns_, address_, number_):
+        data = self.ReadPLCData(sess_, conn_, dhp_, routepath_, routesize_, plctype_, tns_, address_, number_)
+        d = self.PCCC_GetValueAsFloat(data)
+        self.FreePLCRead(data)
+        return d
+
+    def ReadPLCDataAsInteger(self, sess_, conn_, dhp_, routepath_, routesize_, plctype_, tns_, address_, number_):
+        data = self.ReadPLCData(sess_, conn_, dhp_, routepath_, routesize_, plctype_, tns_, address_, number_)
+        d = self.PCCC_GetValueAsInteger(data)
+        self.FreePLCRead(data)
+        return d
 
     def ReadPLCData(self, sess_, conn_, dhp_, routepath_, routesize_, plctype_, tns_, address_, number_):
         self.__tuxeip._ReadPLCData.restype = POINTER(Eip_PLC_Read)
@@ -146,9 +189,33 @@ class TuxEIP:
                                                 tns_, address_, number_)
 
         if bool(readdata) == False:
-            raise TuxEIP_ReadPLCDataFailed()
+            raise TuxEIPException()
 
         return readdata
+
+    def GetLGXValueAsFloat(self, readdata_):
+        if bool(readdata_) == False:
+            return None
+
+        self.__tuxeip._GetLGXValueAsFloat.restype = c_float
+        values = []
+        for i in range(0, readdata_.contents.Varcount):
+            v = self.__tuxeip._GetLGXValueAsFloat(readdata_, i)
+            values.append(v)
+
+        return values
+
+    def GetLGXValueAsInteger(self, readdata_):
+        if bool(readdata_) == False:
+            return None
+
+        self.__tuxeip._GetLGXValueAsInteger.restype = c_int
+        values = []
+        for i in range(0, readdata_.contents.Varcount):
+            v = self.__tuxeip._GetLGXValueAsInteger(readdata_, i)
+            values.append(v)
+
+        return values
     
     def PCCC_GetValueAsFloat(self, readdata_):
         if bool(readdata_) == False:
@@ -162,7 +229,7 @@ class TuxEIP:
 
         return values
 
-    def PCCC_GetValueAsInt(self, readdata_):
+    def PCCC_GetValueAsInteger(self, readdata_):
         if bool(readdata_) == False:
             return None
 
@@ -174,9 +241,29 @@ class TuxEIP:
 
         return values
 
-    def WritePLCData(self):
-        pass
+    def WritePLCData(self, sess_, conn_, dhp_, routepath_, routesize_, plctype_, tns_, address_, datatype_, data_, number_):
+
+        if datatype_ == PLC_INTEGER:
+            data = c_int(data_)
+        elif datatype_ == PLC_FLOATING:
+            data = c_float(data_)
+        else:
+            raise TuxEIPException()
+
+        result = self.__tuxeip._WritePLCData(sess_, conn_, dhp_, routepath_, routesize_, plctype_,
+                                                tns_, address_,  datatype_, byref(data), number_)
+
+        return result
+
+    def Forward_Close(self, conn_):
+        self.__tuxeip._Forward_Close(conn_)
+
+    def UnRegisterSession(self, sess_):
+        self.__tuxeip._UnRegisterSession(sess_)
 
     def CloseSession(self, sess_):
-        pass
+        self.__tuxeip.CloseSession(sess_)
+
+    def FreePLCRead(self, data_):
+        self.__tuxeip._FreePLCRead(data_)
     
