@@ -1,5 +1,7 @@
 #! /usr/bin/env python
 
+# Copyright (C) 2014 Gayner Technical Services Pty Ltd
+
 from ctypes import *
 
 # PLC TYPES
