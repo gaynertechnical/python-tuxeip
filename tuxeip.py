@@ -66,8 +66,11 @@ class Eip_PLC_Read(Structure):
     ]
 
 class TuxEIPException(Exception):
-    def __init__(self):
-        Exception.__init__(self)
+    def __init__(self, value):
+        self.value = value
+
+    def __str__(self):
+        return repr(self.value)
 
 class TuxEIP:
 
@@ -75,6 +78,9 @@ class TuxEIP:
         self.__libpath = kwargs.get("libpath", "libtuxeip.dylib")
         self.__tuxeip = CDLL(self.__libpath)
         self.__tuxeip._cip_err_msg.restype = c_char_p
+
+    def __del__(self):
+        del self.__tuxeip
 
     def OpenSession(self, slaveip_, slaveport_=44818, slavetimeout_=1000):
         self.__tuxeip._OpenSession.restype = POINTER(Eip_Session)
@@ -89,7 +95,7 @@ class TuxEIP:
         #print self.__tuxeip._cip_err_msg, self.__tuxeip._cip_errno, self.__tuxeip._cip_ext_errno
 
         if bool(session) == False:
-            raise TuxEIPException()
+            raise TuxEIPException("Could not open session to " + str(slaveip) + ":" + str(slaveport))
 
         return session
 
@@ -98,7 +104,7 @@ class TuxEIP:
         reg = self.__tuxeip._RegisterSession(sess_)
 
         if reg != False:
-            raise TuxEIPException()
+            raise TuxEIPException("Could not register session")
 
         return reg
 
@@ -136,7 +142,7 @@ class TuxEIP:
         )
 
         if bool(connection) == False:
-            raise TuxEIPException()
+            raise TuxEIPException("Could not connect to CPU")
 
         return connection
 
@@ -145,7 +151,7 @@ class TuxEIP:
         readdata = self.__tuxeip._ReadLgxData(sess_, conn_, var_, num_)
 
         if bool(readdata) == False:
-            raise TuxEIPException()
+            raise TuxEIPException("Read data failed")
 
         return readdata
 
@@ -155,7 +161,7 @@ class TuxEIP:
         elif datatype_ == LGX_REAL:
             data = c_float(data_)
         else:
-            raise TuxEIPException()
+            raise TuxEIPException("Write data failed")
 
         data = self.__tuxeip._WriteLgxData(sess_, conn_, address_, datatype_, byref(data), num_)
 
@@ -191,7 +197,7 @@ class TuxEIP:
                                                 tns_, address_, number_)
 
         if bool(readdata) == False:
-            raise TuxEIPException()
+            raise TuxEIPException("Read data failed")
 
         return readdata
 
@@ -250,7 +256,7 @@ class TuxEIP:
         elif datatype_ == PLC_FLOATING:
             data = c_float(data_)
         else:
-            raise TuxEIPException()
+            raise TuxEIPException("Variable type not supported" + str(datatype_))
 
         result = self.__tuxeip._WritePLCData(sess_, conn_, dhp_, routepath_, routesize_, plctype_,
                                                 tns_, address_,  datatype_, byref(data), number_)
