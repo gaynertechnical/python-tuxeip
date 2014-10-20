@@ -10,19 +10,20 @@ tux = TuxEIP(libpath="../libtuxeip.dylib")
 
 myctr = randint(0,9999)
 
-sess = tux.OpenSession("192.168.0.1")
+sess = tux.OpenSession("10.205.0.212")
 reg = tux.RegisterSession(sess)
 
 conn = tux.ConnectPLCOverCNET(sess, SLC500, 0, 100, 0, 1, 123, 321, 100, 5000, 1, '01')
 
-read_num = 1
-read_var = "F100:40"
+read_num = 4
+read_var = "F80:0"
 
-tux.WritePLCData(sess, conn, None, None, 0, SLC500, 123, read_var, PLC_FLOATING, myctr, 1)
+#tux.WritePLCData(sess, conn, None, None, 0, SLC500, 123, read_var, PLC_FLOATING, myctr, 1)
 
-data = tux.ReadPLCDataAsInteger(sess, conn, None, None, 0, SLC500, 123, read_var, read_num)
+for i in range(0, 11):
+    data = tux.ReadPLCDataAsFloat(sess, conn, None, None, 0, SLC500, 123, read_var, read_num)
 
-print data
+    print data
 
 tux.Forward_Close(conn)
 tux.UnRegisterSession(sess)
